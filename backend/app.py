@@ -62,21 +62,19 @@ import os
 frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
 
 if os.path.exists(frontend_dist):
-    # Mount assets and images specifically
-    assets_dir = os.path.join(frontend_dist, "assets")
-    images_dir = os.path.join(frontend_dist, "images")
-    
-    if os.path.exists(assets_dir):
-        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
-    if os.path.exists(images_dir):
-        app.mount("/images", StaticFiles(directory=images_dir), name="images")
-    
-    # Catch-all route to serve index.html for React SPA router
+    # Catch-all route to serve static files and React SPA index.html
     @app.get("/{catchall:path}")
     async def serve_frontend(catchall: str):
         # Ignore paths starting with api/ to prevent blocking 404s
         if catchall.startswith("api"):
             return {"detail": "Not Found"}
+            
+        # If the path points to an actual file inside dist, return it
+        file_path = os.path.join(frontend_dist, catchall)
+        if catchall and os.path.isfile(file_path):
+            return FileResponse(file_path)
+            
+        # Fallback to index.html for React SPA client-side routing
         return FileResponse(os.path.join(frontend_dist, "index.html"))
 else:
     @app.get("/")
