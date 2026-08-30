@@ -1,0 +1,16 @@
+# Master gitignore
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.env
+.venv/
+env/
+venv/
+yolov8m.pt
+frontend/node_modules/
+frontend/dist/
+backend/__pycache__/
+backend/campus_food.db
+.vscode/
+scratch/
