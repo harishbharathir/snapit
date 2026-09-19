@@ -1,4 +1,13 @@
-const BASE = '/api';
+import { Capacitor } from '@capacitor/core';
+
+// On Android Emulator, point to 10.0.2.2. In your desktop browser, keep localhost.
+export const API_BASE_URL = Capacitor.isNativePlatform()
+  ? 'http://10.0.2.2:8000'
+  : 'http://localhost:8000';
+
+export const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws');
+
+const BASE = `${API_BASE_URL}/api`;
 
 export const api = {
   // Auth

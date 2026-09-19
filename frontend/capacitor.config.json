@@ -1,0 +1,12 @@
+{
+  "appId": "com.snapit.app",
+  "appName": "SnapIt",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

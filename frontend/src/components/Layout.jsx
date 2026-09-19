@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from './Navbar';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, X } from 'lucide-react';
+import { WS_BASE_URL } from '../api';
 
 const playNotificationSound = () => {
   try {
@@ -43,10 +44,7 @@ const Layout = ({ children, currentUser, onLogout, onUpdateUser }) => {
     if (!currentUser || currentUser.role !== 'student') return;
 
     // Connect to WebSocket server directly
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const isLocalDev = window.location.port && window.location.port !== '8000';
-    const wsHost = isLocalDev ? `${window.location.hostname}:8000` : window.location.host;
-    const wsUrl = `${wsProtocol}//${wsHost}/api/ws/${currentUser.id}`;
+    const wsUrl = `${WS_BASE_URL}/api/ws/${currentUser.id}`;
     let socket = new WebSocket(wsUrl);
 
     socket.onmessage = (event) => {

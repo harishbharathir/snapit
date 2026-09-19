@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SnapIt</string>
+    <string name="title_activity_main">SnapIt</string>
+    <string name="package_name">com.snapit.app</string>
+    <string name="custom_url_scheme">com.snapit.app</string>
+</resources>
