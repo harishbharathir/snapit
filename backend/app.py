@@ -15,8 +15,11 @@ async def lifespan(app: FastAPI):
     # Start background task
     async def update_crowd_task():
         while True:
-            async with get_db() as db:
-                await crowd_service.update_all_canteens(db)
+            try:
+                async with get_db() as db:
+                    await crowd_service.update_all_canteens(db)
+            except Exception as crowd_err:
+                pass
             await asyncio.sleep(15)
             
     task = asyncio.create_task(update_crowd_task())
@@ -42,6 +45,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/api/health")
+async def health_check():
+    from database import is_mock_db, MONGODB_URI
+    return {
+        "status": "ok",
+        "message": "snapit API is operational",
+        "version": "1.0.0",
+        "database": "in-memory-mock" if is_mock_db() else "mongodb"
+    }
 
 app.include_router(menu.router)
 app.include_router(orders.router)

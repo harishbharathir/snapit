@@ -7,5 +7,6 @@ qrcode[pil]>=7.4.2
 Pillow>=10.2.0
 pydantic>=2.5.2
 opencv-python-headless>=4.8.1.78
+mongomock-motor>=0.0.36
 
 

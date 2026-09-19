@@ -9,16 +9,24 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 DB_NAME = os.getenv("MONGODB_DB_NAME", "snapit_db")
 
-client: Optional[AsyncIOMotorClient] = None
-db: Optional[AsyncIOMotorDatabase] = None
+client = None
+db = None
+_is_mock = False
 
-def get_client() -> AsyncIOMotorClient:
+def is_mock_db() -> bool:
+    return _is_mock
+
+def get_client():
     global client
     if client is None:
-        client = AsyncIOMotorClient(MONGODB_URI)
+        client = AsyncIOMotorClient(
+            MONGODB_URI,
+            serverSelectionTimeoutMS=3000,
+            connectTimeoutMS=3000
+        )
     return client
 
-def get_database() -> AsyncIOMotorDatabase:
+def get_database():
     global db
     if db is None:
         db = get_client()[DB_NAME]
@@ -44,19 +52,42 @@ def verify_password(plain_password: str, stored_password: str) -> bool:
     return secrets.compare_digest(pw_hash, test_hash)
 
 async def init_db():
+    global client, db, _is_mock
     database = get_database()
     
-    # 1. Setup Indexes
-    await database.users.create_index("username", unique=True)
-    await database.users.create_index("email", unique=True, sparse=True)
-    await database.users.create_index("id", unique=True)
-    await database.canteens.create_index("id", unique=True)
-    await database.menu_items.create_index("id", unique=True)
-    await database.menu_items.create_index([("canteen_id", 1), ("category", 1)])
-    await database.orders.create_index("id", unique=True)
-    await database.orders.create_index([("canteen_id", 1), ("status", 1)])
-    await database.orders.create_index([("student_id", 1), ("created_at", -1)])
-    await database.crowd_zone_data.create_index([("canteen_id", 1), ("timestamp", -1)])
+    # 1. Verify connection to MongoDB
+    try:
+        await database.command("ping")
+        host_info = MONGODB_URI.split('@')[-1] if '@' in MONGODB_URI else MONGODB_URI
+        print(f"[DATABASE] Connected to MongoDB ({host_info})")
+    except Exception as err:
+        print(f"[DATABASE WARNING] Could not connect to MongoDB at '{MONGODB_URI}': {err}")
+        try:
+            from mongomock_motor import AsyncMongoMockClient
+            print("[DATABASE] Falling back to in-memory MongoDB (mongomock-motor) for deployment.")
+            print("[DATABASE HINT] To use persistent cloud storage on Render, set MONGODB_URI in your Render environment variables.")
+            client = AsyncMongoMockClient()
+            db = client[DB_NAME]
+            database = db
+            _is_mock = True
+        except Exception as mock_err:
+            print(f"[DATABASE ERROR] In-memory fallback failed: {mock_err}")
+            return
+
+    # 2. Setup Indexes
+    try:
+        await database.users.create_index("username", unique=True)
+        await database.users.create_index("email", unique=True, sparse=True)
+        await database.users.create_index("id", unique=True)
+        await database.canteens.create_index("id", unique=True)
+        await database.menu_items.create_index("id", unique=True)
+        await database.menu_items.create_index([("canteen_id", 1), ("category", 1)])
+        await database.orders.create_index("id", unique=True)
+        await database.orders.create_index([("canteen_id", 1), ("status", 1)])
+        await database.orders.create_index([("student_id", 1), ("created_at", -1)])
+        await database.crowd_zone_data.create_index([("canteen_id", 1), ("timestamp", -1)])
+    except Exception as idx_err:
+        print(f"Index notice: {idx_err}")
 
     # 2. Seed / Ensure Canteens
     canteen_count = await database.canteens.count_documents({})
