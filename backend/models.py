@@ -7,15 +7,24 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    email: Optional[str] = None
+    role: str = "student"
+    canteen_id: Optional[str] = None
+
 class UserResponse(BaseModel):
     id: str
     username: str
+    email: Optional[str] = None
     role: str
     wallet_balance: float
     canteen_id: Optional[str] = None
 
 class WalletAddRequest(BaseModel):
     amount: float
+
 
 # --- Existing Models ---
 class CrowdZoneData(BaseModel):

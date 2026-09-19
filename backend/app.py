@@ -25,6 +25,13 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     task.cancel()
+    try:
+        from database import client
+        if client:
+            client.close()
+    except Exception:
+        pass
+
 
 app = FastAPI(title='snapit API', lifespan=lifespan)
 
@@ -41,6 +48,11 @@ app.include_router(orders.router)
 app.include_router(ai_integration.router)
 app.include_router(analytics.router)
 app.include_router(auth.router)
+
+@app.get("/api/health")
+async def health():
+    return {"message": "snapit API", "version": "1.0.0", "database": "mongodb"}
+
 
 from fastapi import WebSocket, WebSocketDisconnect
 from routes.orders import notification_manager

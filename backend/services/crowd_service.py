@@ -1,7 +1,9 @@
 import sys
 import os
 import random
+from datetime import datetime
 from typing import Dict, Any
+
 
 # Attempt to import CrowdAnalyzer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -121,27 +123,34 @@ class CrowdService:
         return recs
 
     async def save_crowd_data(self, db, data: list):
+        if not data:
+            return
+        records = []
         for z in data:
-            await db.execute('''
-            INSERT INTO crowd_zone_data 
-            (canteen_id, zone_id, zone_name, people_count, occupancy_percentage, zone_status)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ''', (z['canteen_id'], z['zone_id'], z['zone_name'], z['people_count'], z['occupancy_percentage'], z['zone_status']))
+            rec = dict(z)
+            rec['timestamp'] = datetime.now()
+            records.append(rec)
+        try:
+            await db.crowd_zone_data.insert_many(records)
+        except Exception as e:
+            print(f"Error saving crowd data: {e}")
             
     async def get_latest_crowd_data(self, db, canteen_id: str) -> list:
-        async with db.execute('''
-            SELECT * FROM crowd_zone_data 
-            WHERE canteen_id = ? 
-            ORDER BY timestamp DESC LIMIT 3
-        ''', (canteen_id,)) as cursor:
-            rows = await cursor.fetchall()
+        try:
+            rows = await db.crowd_zone_data.find(
+                {"canteen_id": canteen_id},
+                {"_id": 0}
+            ).sort("timestamp", -1).limit(3).to_list(3)
             if rows:
-                return [dict(r) for r in rows]
+                return rows
+        except Exception as e:
+            print(f"Error reading crowd data: {e}")
         # fallback to memory
         return self.latest_data.get(canteen_id, [])
         
     async def get_all_canteen_crowd_data(self, db) -> dict:
         return self.latest_data
+
 
     async def update_all_canteens(self, db=None):
         import asyncio

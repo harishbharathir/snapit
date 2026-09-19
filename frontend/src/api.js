@@ -1,11 +1,17 @@
 import { Capacitor } from '@capacitor/core';
 
-// On Android Emulator, point to 10.0.2.2. In your desktop browser, keep localhost.
-export const API_BASE_URL = Capacitor.isNativePlatform()
-  ? 'http://10.0.2.2:8000'
-  : 'http://localhost:8000';
+// Check if a custom server URL was set (useful for physical phone testing)
+const customServer = typeof window !== 'undefined' ? localStorage.getItem('snapit_server_url') : null;
+
+// On Android Emulator, point to 10.0.2.2. On desktop browser, localhost.
+export const API_BASE_URL = customServer || (
+  Capacitor.isNativePlatform()
+    ? 'http://10.0.2.2:8000'
+    : 'http://localhost:8000'
+);
 
 export const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws');
+
 
 const BASE = `${API_BASE_URL}/api`;
 
@@ -14,12 +20,26 @@ export const api = {
   login: (data) => fetch(`${BASE}/auth/login`, {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
   }).then(async r => {
-    if (!r.ok) throw new Error((await r.json()).detail);
+    if (!r.ok) throw new Error((await r.json()).detail || 'Login failed');
+    return r.json();
+  }),
+  register: (data) => fetch(`${BASE}/auth/register`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+  }).then(async r => {
+    if (!r.ok) throw new Error((await r.json()).detail || 'Registration failed');
+    return r.json();
+  }),
+  signup: (data) => fetch(`${BASE}/auth/signup`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+  }).then(async r => {
+    if (!r.ok) throw new Error((await r.json()).detail || 'Signup failed');
     return r.json();
   }),
   addWallet: (userId, amount) => fetch(`${BASE}/auth/wallet/${userId}`, {
+
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ amount })
   }).then(r => r.json()),
+
 
   // Canteens & Menu
   getCanteens: () => fetch(`${BASE}/canteens`).then(r => r.json()),

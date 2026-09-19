@@ -1,187 +1,174 @@
-import aiosqlite
 import os
+import hashlib
+import secrets
+from datetime import datetime
+from typing import Optional
 from contextlib import asynccontextmanager
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'campus_food.db')
+MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+DB_NAME = os.getenv("MONGODB_DB_NAME", "snapit_db")
+
+client: Optional[AsyncIOMotorClient] = None
+db: Optional[AsyncIOMotorDatabase] = None
+
+def get_client() -> AsyncIOMotorClient:
+    global client
+    if client is None:
+        client = AsyncIOMotorClient(MONGODB_URI)
+    return client
+
+def get_database() -> AsyncIOMotorDatabase:
+    global db
+    if db is None:
+        db = get_client()[DB_NAME]
+    return db
 
 @asynccontextmanager
 async def get_db():
-    db = await aiosqlite.connect(DB_PATH)
-    db.row_factory = aiosqlite.Row
-    try:
-        yield db
-    finally:
-        await db.close()
+    yield get_database()
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
+    return f"{salt}${pw_hash}"
+
+def verify_password(plain_password: str, stored_password: str) -> bool:
+    if not stored_password:
+        return False
+    if "$" not in stored_password:
+        # Legacy plain password support
+        return plain_password == stored_password
+    salt, pw_hash = stored_password.split("$", 1)
+    test_hash = hashlib.pbkdf2_hmac('sha256', plain_password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
+    return secrets.compare_digest(pw_hash, test_hash)
 
 async def init_db():
-    async with get_db() as db:
-        # Create users table
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                username TEXT,
-                password TEXT,
-                role TEXT,
-                wallet_balance REAL DEFAULT 0,
-                canteen_id TEXT
-            )
-        ''')
-        
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS canteens (
-                id TEXT PRIMARY KEY,
-                name TEXT,
-                location TEXT,
-                image_url TEXT,
-                status TEXT DEFAULT 'OPEN'
-            )
-        ''')
+    database = get_database()
+    
+    # 1. Setup Indexes
+    await database.users.create_index("username", unique=True)
+    await database.users.create_index("email", unique=True, sparse=True)
+    await database.users.create_index("id", unique=True)
+    await database.canteens.create_index("id", unique=True)
+    await database.menu_items.create_index("id", unique=True)
+    await database.menu_items.create_index([("canteen_id", 1), ("category", 1)])
+    await database.orders.create_index("id", unique=True)
+    await database.orders.create_index([("canteen_id", 1), ("status", 1)])
+    await database.orders.create_index([("student_id", 1), ("created_at", -1)])
+    await database.crowd_zone_data.create_index([("canteen_id", 1), ("timestamp", -1)])
 
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS menu_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                canteen_id TEXT,
-                name TEXT,
-                description TEXT,
-                price REAL,
-                category TEXT,
-                image_url TEXT,
-                available BOOLEAN DEFAULT 1,
-                inventory INTEGER DEFAULT 50,
-                is_special BOOLEAN DEFAULT 0,
-                FOREIGN KEY (canteen_id) REFERENCES canteens (id)
-            )
-        ''')
-
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS orders (
-                id TEXT PRIMARY KEY,
-                canteen_id TEXT,
-                student_id TEXT,
-                student_name TEXT,
-                total_amount REAL,
-                status TEXT DEFAULT 'PENDING',
-                qr_code TEXT,
-                qr_code_tea TEXT,
-                qr_code_snacks TEXT,
-                tea_status TEXT DEFAULT 'PENDING',
-                snacks_status TEXT DEFAULT 'PENDING',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (canteen_id) REFERENCES canteens (id)
-            )
-        ''')
-
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS order_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_id TEXT,
-                menu_item_id INTEGER,
-                quantity INTEGER,
-                price REAL,
-                FOREIGN KEY (order_id) REFERENCES orders (id),
-                FOREIGN KEY (menu_item_id) REFERENCES menu_items (id)
-            )
-        ''')
-
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS crowd_zone_data (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                canteen_id TEXT,
-                zone_id TEXT,
-                zone_name TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                people_count INTEGER,
-                occupancy_percentage REAL,
-                zone_status TEXT
-            )
-        ''')
-
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS zone_config (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                canteen_id TEXT,
-                zone_id TEXT,
-                zone_name TEXT,
-                x INTEGER,
-                y INTEGER,
-                width INTEGER,
-                height INTEGER,
-                capacity INTEGER
-            )
-        ''')
-        # Run migrations to add new columns to orders if the DB already exists
-        for col, col_type in [
-            ("qr_code_tea", "TEXT"), 
-            ("qr_code_snacks", "TEXT"), 
-            ("tea_status", "TEXT DEFAULT 'PENDING'"), 
-            ("snacks_status", "TEXT DEFAULT 'PENDING'")
-        ]:
-            try:
-                await db.execute(f"ALTER TABLE orders ADD COLUMN {col} {col_type}")
-            except Exception:
-                pass
-
-        await db.commit()
-
-        # Seed Users
-        await db.execute("INSERT OR IGNORE INTO users (id, username, password, role, wallet_balance) VALUES ('student1', 'Harish', 'password', 'student', 500)")
-        await db.execute("INSERT OR IGNORE INTO users (id, username, password, role, canteen_id) VALUES ('staffA', 'CounterA', 'password', 'staff', 'A')")
-        await db.execute("INSERT OR IGNORE INTO users (id, username, password, role, canteen_id) VALUES ('staffB', 'CounterB', 'password', 'staff', 'B')")
-        await db.execute("INSERT OR IGNORE INTO users (id, username, password, role) VALUES ('admin1', 'Admin', 'password', 'admin')")
-
-        # Seed Canteens
+    # 2. Seed / Ensure Canteens
+    canteen_count = await database.canteens.count_documents({})
+    if canteen_count == 0:
         canteens = [
-            ('A', 'Main Canteen', 'Central Block', '/images/canteen_a.jpg'),
-            ('B', 'Food Court', 'East Wing', '/images/canteen_b.jpg'),
-            ('C', 'Snack Corner', 'Library Block', '/images/canteen_c.jpg')
+            {'id': 'A', 'name': 'Main Canteen', 'location': 'Central Block', 'image_url': '/images/canteen_a.jpg', 'status': 'OPEN'},
+            {'id': 'B', 'name': 'Food Court', 'location': 'East Wing', 'image_url': '/images/canteen_b.jpg', 'status': 'OPEN'},
+            {'id': 'C', 'name': 'Snack Corner', 'location': 'Library Block', 'image_url': '/images/canteen_c.jpg', 'status': 'OPEN'}
         ]
-        for c in canteens:
-            await db.execute("INSERT OR IGNORE INTO canteens (id, name, location, image_url) VALUES (?, ?, ?, ?)", c)
+        await database.canteens.insert_many(canteens)
 
-        # Seed Menu Items (with inventory and is_special)
-        async with db.execute("SELECT COUNT(*) FROM menu_items") as cursor:
-            count = (await cursor.fetchone())[0]
-            if count == 0:
-                menu = [
-                    ('A', 'Dosa', 'Crispy plain dosa', 40.0, 'South Indian', '/images/food_dosa.jpg', 50, 0),
-                    ('A', 'Special Paneer Dosa', 'Spicy paneer filling', 80.0, 'South Indian', '/images/food_paneer_dosa.jpg', 20, 1),
-                    ('A', 'Idli', 'Soft idli with sambar', 30.0, 'South Indian', '/images/food_idli.jpg', 100, 0),
-                    ('A', 'Fried Rice', 'Veg fried rice', 80.0, 'Chinese', '/images/food_fried_rice.jpg', 40, 0),
-                    ('B', 'Burger', 'Veg burger with fries', 100.0, 'Snacks', '/images/food_burger.jpg', 30, 0),
-                    ('B', 'Special Pizza', 'Cheese burst pizza', 150.0, 'Snacks', '/images/food_pizza.jpg', 15, 1),
-                    ('B', 'Cold Coffee', 'Thick cold coffee', 60.0, 'Beverages', '/images/food_cold_coffee.jpg', 50, 0),
-                    ('C', 'Samosa', 'Crispy potato samosa', 15.0, 'Snacks', '/images/food_samosa.jpg', 60, 0),
-                    ('C', 'Tea', 'Masala chai', 10.0, 'Beverages', '/images/food_tea.jpg', 100, 0),
-                    ('C', 'Special Brownie', 'Hot chocolate brownie', 90.0, 'Snacks', '/images/food_brownie.jpg', 25, 1)
-                ]
-                for item in menu:
-                    await db.execute('''
-                        INSERT INTO menu_items (canteen_id, name, description, price, category, image_url, inventory, is_special)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', item)
+    # 3. Seed / Ensure Menu Items
+    menu_count = await database.menu_items.count_documents({})
+    if menu_count == 0:
+        menu = [
+            {'id': 1, 'canteen_id': 'A', 'name': 'Dosa', 'description': 'Crispy plain dosa', 'price': 40.0, 'category': 'South Indian', 'image_url': '/images/food_dosa.jpg', 'available': True, 'inventory': 50, 'is_special': False},
+            {'id': 2, 'canteen_id': 'A', 'name': 'Special Paneer Dosa', 'description': 'Spicy paneer filling', 'price': 80.0, 'category': 'South Indian', 'image_url': '/images/food_paneer_dosa.jpg', 'available': True, 'inventory': 20, 'is_special': True},
+            {'id': 3, 'canteen_id': 'A', 'name': 'Idli', 'description': 'Soft idli with sambar', 'price': 30.0, 'category': 'South Indian', 'image_url': '/images/food_idli.jpg', 'available': True, 'inventory': 100, 'is_special': False},
+            {'id': 4, 'canteen_id': 'A', 'name': 'Fried Rice', 'description': 'Veg fried rice', 'price': 80.0, 'category': 'Chinese', 'image_url': '/images/food_fried_rice.jpg', 'available': True, 'inventory': 40, 'is_special': False},
+            {'id': 5, 'canteen_id': 'B', 'name': 'Burger', 'description': 'Veg burger with fries', 'price': 100.0, 'category': 'Snacks', 'image_url': '/images/food_burger.jpg', 'available': True, 'inventory': 30, 'is_special': False},
+            {'id': 6, 'canteen_id': 'B', 'name': 'Special Pizza', 'description': 'Cheese burst pizza', 'price': 150.0, 'category': 'Snacks', 'image_url': '/images/food_pizza.jpg', 'available': True, 'inventory': 15, 'is_special': True},
+            {'id': 7, 'canteen_id': 'B', 'name': 'Cold Coffee', 'description': 'Thick cold coffee', 'price': 60.0, 'category': 'Beverages', 'image_url': '/images/food_cold_coffee.jpg', 'available': True, 'inventory': 50, 'is_special': False},
+            {'id': 8, 'canteen_id': 'C', 'name': 'Samosa', 'description': 'Crispy potato samosa', 'price': 15.0, 'category': 'Snacks', 'image_url': '/images/food_samosa.jpg', 'available': True, 'inventory': 60, 'is_special': False},
+            {'id': 9, 'canteen_id': 'C', 'name': 'Tea', 'description': 'Masala chai', 'price': 10.0, 'category': 'Beverages', 'image_url': '/images/food_tea.jpg', 'available': True, 'inventory': 100, 'is_special': False},
+            {'id': 10, 'canteen_id': 'C', 'name': 'Special Brownie', 'description': 'Hot chocolate brownie', 'price': 90.0, 'category': 'Snacks', 'image_url': '/images/food_brownie.jpg', 'available': True, 'inventory': 25, 'is_special': True}
+        ]
+        await database.menu_items.insert_many(menu)
 
-        # Force Update Canteen and Menu Item images for existing DB setups
-        canteen_imgs = {
-            'A': '/images/canteen_a.jpg',
-            'B': '/images/canteen_b.jpg',
-            'C': '/images/canteen_c.jpg'
-        }
-        for cid, img in canteen_imgs.items():
-            await db.execute("UPDATE canteens SET image_url = ? WHERE id = ?", (img, cid))
+    # 4. Seed / Ensure Users
+    user_count = await database.users.count_documents({})
+    if user_count == 0:
+        seed_users = [
+            {
+                'id': 'student1',
+                'username': 'Harish',
+                'email': 'harish@snapit.edu',
+                'password': hash_password('password'),
+                'role': 'student',
+                'wallet_balance': 500.0,
+                'canteen_id': None,
+                'created_at': datetime.now()
+            },
+            {
+                'id': 'staffA',
+                'username': 'CounterA',
+                'email': 'countera@snapit.edu',
+                'password': hash_password('password'),
+                'role': 'staff',
+                'wallet_balance': 0.0,
+                'canteen_id': 'A',
+                'created_at': datetime.now()
+            },
+            {
+                'id': 'staffB',
+                'username': 'CounterB',
+                'email': 'counterb@snapit.edu',
+                'password': hash_password('password'),
+                'role': 'staff',
+                'wallet_balance': 0.0,
+                'canteen_id': 'B',
+                'created_at': datetime.now()
+            },
+            {
+                'id': 'admin1',
+                'username': 'Admin',
+                'email': 'admin@snapit.edu',
+                'password': hash_password('password'),
+                'role': 'admin',
+                'wallet_balance': 0.0,
+                'canteen_id': None,
+                'created_at': datetime.now()
+            }
+        ]
+        await database.users.insert_many(seed_users)
 
-        menu_item_imgs = {
-            'Dosa': '/images/food_dosa.jpg',
-            'Special Paneer Dosa': '/images/food_paneer_dosa.jpg',
-            'Idli': '/images/food_idli.jpg',
-            'Fried Rice': '/images/food_fried_rice.jpg',
-            'Burger': '/images/food_burger.jpg',
-            'Special Pizza': '/images/food_pizza.jpg',
-            'Cold Coffee': '/images/food_cold_coffee.jpg',
-            'Samosa': '/images/food_samosa.jpg',
-            'Tea': '/images/food_tea.jpg',
-            'Special Brownie': '/images/food_brownie.jpg'
-        }
-        for name, img in menu_item_imgs.items():
-            await db.execute("UPDATE menu_items SET image_url = ? WHERE name = ?", (img, name))
-
-        await db.commit()
+    # 5. Optional SQLite to MongoDB migration for existing orders if empty
+    orders_count = await database.orders.count_documents({})
+    sqlite_path = os.path.join(os.path.dirname(__file__), 'campus_food.db')
+    if orders_count == 0 and os.path.exists(sqlite_path):
+        try:
+            import sqlite3
+            conn = sqlite3.connect(sqlite_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Fetch orders
+            cursor.execute("SELECT * FROM orders")
+            rows = cursor.fetchall()
+            if rows:
+                migrated_orders = []
+                for r in rows:
+                    oid = r['id']
+                    cursor.execute('''
+                        SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price, m.name as item_name, m.category 
+                        FROM order_items oi
+                        LEFT JOIN menu_items m ON oi.menu_item_id = m.id
+                        WHERE oi.order_id = ?
+                    ''', (oid,))
+                    items = [dict(ir) for ir in cursor.fetchall()]
+                    
+                    order_dict = dict(r)
+                    order_dict['items'] = items
+                    # parse created_at
+                    try:
+                        if isinstance(order_dict.get('created_at'), str):
+                            order_dict['created_at'] = datetime.fromisoformat(order_dict['created_at'].replace(' ', 'T'))
+                    except Exception:
+                        order_dict['created_at'] = datetime.now()
+                        
+                    migrated_orders.append(order_dict)
+                if migrated_orders:
+                    await database.orders.insert_many(migrated_orders)
+            conn.close()
+        except Exception as e:
+            print(f"Notice: SQLite to MongoDB orders migration skipped: {e}")

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from fastapi import APIRouter
 from database import get_db
 from services.crowd_service import crowd_service
@@ -7,29 +8,44 @@ router = APIRouter(prefix='/api/analytics', tags=['analytics'])
 @router.get('/summary')
 async def get_summary():
     """Today's summary: orders, revenue, avg wait, active users with dynamic trends."""
+    now = datetime.now()
+    start_of_day = datetime(now.year, now.month, now.day)
+    one_hour_ago = now - timedelta(hours=1)
+    two_hours_ago = now - timedelta(hours=2)
+
+    total_orders = 0
+    total_revenue = 0.0
+    orders_last = 0
+    revenue_last = 0.0
+    orders_prev = 0
+    revenue_prev = 0.0
+
     async with get_db() as db:
-        # Today's totals
-        async with db.execute(
-            "SELECT COUNT(*), COALESCE(SUM(total_amount), 0) FROM orders WHERE date(created_at) = date('now')"
-        ) as cursor:
-            row = await cursor.fetchone()
-            total_orders = row[0]
-            total_revenue = row[1]
+        # Fetch today's orders
+        orders_today = await db.orders.find(
+            {"created_at": {"$gte": start_of_day}},
+            {"total_amount": 1, "created_at": 1, "_id": 0}
+        ).to_list(2000)
 
-        # Last hour vs previous hour orders & revenue
-        async with db.execute(
-            "SELECT COUNT(*), COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at >= datetime('now', '-1 hour')"
-        ) as cursor:
-            last_hr = await cursor.fetchone()
-            orders_last = last_hr[0]
-            revenue_last = last_hr[1]
+        for o in orders_today:
+            amt = float(o.get('total_amount', 0))
+            total_orders += 1
+            total_revenue += amt
 
-        async with db.execute(
-            "SELECT COUNT(*), COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at >= datetime('now', '-2 hour') AND created_at < datetime('now', '-1 hour')"
-        ) as cursor:
-            prev_hr = await cursor.fetchone()
-            orders_prev = prev_hr[0]
-            revenue_prev = prev_hr[1]
+            dt = o.get('created_at')
+            if isinstance(dt, str):
+                try:
+                    dt = datetime.fromisoformat(dt.replace('Z', ''))
+                except Exception:
+                    dt = None
+
+            if isinstance(dt, datetime):
+                if dt >= one_hour_ago:
+                    orders_last += 1
+                    revenue_last += amt
+                elif dt >= two_hours_ago:
+                    orders_prev += 1
+                    revenue_prev += amt
 
     # Calculate trends
     orders_trend = round(((orders_last - orders_prev) / max(orders_prev, 1)) * 100, 1) if orders_prev > 0 else (12.5 if orders_last > 0 else 0.0)
@@ -85,15 +101,27 @@ async def get_summary():
 @router.get('/peak-hours')
 async def get_peak_hours():
     """Hourly crowd pattern — realistic campus schedule + live db orders."""
+    now = datetime.now()
+    start_of_day = datetime(now.year, now.month, now.day)
     live_orders = {}
+
     try:
         async with get_db() as db:
-            async with db.execute(
-                "SELECT strftime('%H', datetime(created_at, 'localtime')) as hr, COUNT(*) FROM orders WHERE date(created_at) = date('now') GROUP BY hr"
-            ) as cursor:
-                rows = await cursor.fetchall()
-                for row in rows:
-                    live_orders[row[0]] = row[1]
+            orders = await db.orders.find(
+                {"created_at": {"$gte": start_of_day}},
+                {"created_at": 1, "_id": 0}
+            ).to_list(1000)
+
+            for o in orders:
+                dt = o.get('created_at')
+                if isinstance(dt, str):
+                    try:
+                        dt = datetime.fromisoformat(dt.replace('Z', ''))
+                    except Exception:
+                        dt = None
+                if isinstance(dt, datetime):
+                    hr = dt.strftime("%H")
+                    live_orders[hr] = live_orders.get(hr, 0) + 1
     except Exception:
         pass
 
@@ -115,7 +143,6 @@ async def get_peak_hours():
 
     for item in baseline:
         hour_key = item["hour"]
-        # Add live database orders to baseline for dynamic chart spikes
         item["orders"] += live_orders.get(hour_key, 0)
         if hour_key in live_orders:
             item["occupancy"] = min(100, item["occupancy"] + (live_orders[hour_key] * 5))
