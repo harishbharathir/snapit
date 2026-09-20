@@ -58,6 +58,36 @@ class MenuItem(BaseModel):
     available: bool
     inventory: int = 50
     is_special: bool = False
+    # Staff-managed tags
+    today_special: bool = False
+    new_arrival: bool = False
+    is_offer: bool = False
+    offer_price: Optional[float] = None
+
+class MenuItemCreate(BaseModel):
+    name: str
+    description: str = ""
+    price: float
+    category: str
+    inventory: int = 50
+    is_special: bool = False
+    today_special: bool = False
+    new_arrival: bool = False
+    is_offer: bool = False
+    offer_price: Optional[float] = None
+
+class MenuItemUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    category: Optional[str] = None
+    inventory: Optional[int] = None
+    available: Optional[bool] = None
+    is_special: Optional[bool] = None
+    today_special: Optional[bool] = None
+    new_arrival: Optional[bool] = None
+    is_offer: Optional[bool] = None
+    offer_price: Optional[float] = None
 
 class OrderItemCreate(BaseModel):
     menu_item_id: int

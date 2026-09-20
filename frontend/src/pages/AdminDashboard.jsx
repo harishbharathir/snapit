@@ -40,32 +40,64 @@ const AdminDashboard = () => {
   };
 
   const handleDownloadReport = () => {
-    // Generate simple CSV for hackathon demo
+    const date = new Date().toISOString().split('T')[0];
     const rows = [
+      ['SnapIt Campus Report', `Generated: ${new Date().toLocaleString()}`],
+      [''],
+      ['=== ORDER SUMMARY ===', ''],
       ['Metric', 'Value'],
-      ['Total Orders', summary?.total_orders || 0],
-      ['Total Revenue', summary?.total_revenue || 0],
-      ['Average Wait Time', summary?.avg_wait_time || 0],
+      ['Total Orders Today', summary?.total_orders || 0],
+      ['Total Revenue (INR)', summary?.total_revenue || 0],
+      ['Average Wait Time (min)', summary?.avg_wait_time || 0],
       ['Active Users', summary?.active_users || 0],
-      ['', ''],
-      ['Canteen', 'Occupancy (%)', 'Total People'],
+      [''],
+      ['=== CROWD DATA ===', ''],
+      ['Canteen', 'Occupancy (%)', 'Total People', 'Status'],
     ];
 
     Object.entries(allCrowdData).forEach(([cid, data]) => {
-      rows.push([CANTEEN_NAMES[cid] || cid, data.occupancy_percentage, data.total_people]);
+      rows.push([
+        CANTEEN_NAMES[cid] || cid,
+        Math.round(data.occupancy_percentage || 0),
+        data.total_people || 0,
+        data.status || 'N/A'
+      ]);
     });
 
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + rows.map(e => e.join(",")).join("\n");
-      
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `campus_eats_report_${new Date().toISOString().split('T')[0]}.csv`);
+    rows.push(['']);
+    rows.push(['=== ZONE BREAKDOWN ===', '', '', '']);
+    rows.push(['Canteen', 'Zone', 'People Count', 'Occupancy (%)']);
+    Object.entries(allCrowdData).forEach(([cid, data]) => {
+      (data.zones || []).forEach(z => {
+        rows.push([
+          CANTEEN_NAMES[cid] || cid,
+          z.zone_name || z.zone_id,
+          z.people_count || 0,
+          Math.round(z.occupancy_percentage || 0),
+        ]);
+      });
+    });
+
+    if (peakHours.length > 0) {
+      rows.push(['']);
+      rows.push(['=== PEAK HOURS ===', '', '']);
+      rows.push(['Hour', 'Occupancy (%)', 'Orders']);
+      peakHours.forEach(h => rows.push([h.label, h.occupancy, h.orders]));
+    }
+
+    // Use Blob instead of encodeURI to handle special chars (₹, commas, etc.)
+    const csvContent = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `snapit_report_${date}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
+
 
   useEffect(() => {
     fetchData();

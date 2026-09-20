@@ -63,4 +63,28 @@ export const api = {
   getSummary: () => fetch(`${BASE}/analytics/summary`).then(r => r.json()),
   getPeakHours: () => fetch(`${BASE}/analytics/peak-hours`).then(r => r.json()),
   getZoneComparison: () => fetch(`${BASE}/analytics/zone-comparison`).then(r => r.json()),
+
+  // Staff Menu Management
+  createMenuItem: (canteenId, formData) => fetch(`${BASE}/menu/${canteenId}`, {
+    method: 'POST', body: formData  // FormData – no Content-Type header needed
+  }).then(async r => {
+    if (!r.ok) throw new Error((await r.json()).detail || 'Failed to create item');
+    return r.json();
+  }),
+  updateMenuItem: (canteenId, itemId, data) => fetch(`${BASE}/menu/${canteenId}/${itemId}`, {
+    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+  }).then(async r => {
+    if (!r.ok) throw new Error((await r.json()).detail || 'Failed to update item');
+    return r.json();
+  }),
+  deleteMenuItem: (canteenId, itemId) => fetch(`${BASE}/menu/${canteenId}/${itemId}`, {
+    method: 'DELETE'
+  }).then(async r => {
+    if (!r.ok) throw new Error((await r.json()).detail || 'Failed to delete item');
+    return r.json();
+  }),
+  updateMenuItemImage: (canteenId, itemId, formData) => fetch(`${BASE}/menu/${canteenId}/${itemId}/image`, {
+    method: 'PUT', body: formData
+  }).then(r => r.json()),
 };
+
