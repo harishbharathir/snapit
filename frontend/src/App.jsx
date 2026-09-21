@@ -7,6 +7,7 @@ import MenuPage from './pages/MenuPage';
 import OrderStatus from './pages/OrderStatus';
 import CounterPage from './pages/CounterPage';
 import AdminDashboard from './pages/AdminDashboard';
+import BillsPage from './pages/BillsPage';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -35,6 +36,7 @@ function App() {
               <Route path="/" element={<StudentDashboard currentUser={currentUser} onUpdateUser={setCurrentUser} />} />
               <Route path="/menu/:canteenId" element={<MenuPage currentUser={currentUser} onUpdateUser={setCurrentUser} />} />
               <Route path="/order/:orderId" element={<OrderStatus />} />
+              <Route path="/bills" element={<BillsPage currentUser={currentUser} />} />
               <Route path="*" element={<Navigate to="/" />} />
             </>
           )}

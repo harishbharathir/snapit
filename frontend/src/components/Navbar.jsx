@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { LogOut, Wallet } from 'lucide-react';
+import { LogOut, Wallet, Receipt } from 'lucide-react';
 
 const Navbar = ({ currentUser, onLogout }) => {
   return (
@@ -11,8 +11,17 @@ const Navbar = ({ currentUser, onLogout }) => {
         </Link>
         <div className="flex items-center gap-6">
           {currentUser?.role === 'student' && (
-            <div className="flex items-center gap-2 text-sm font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
-              <Wallet size={16} /> ₹{currentUser.wallet_balance}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-sm font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
+                <Wallet size={16} /> ₹{currentUser.wallet_balance}
+              </div>
+              <Link
+                to="/bills"
+                id="nav-bills"
+                className="flex items-center gap-1.5 text-sm font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-full border border-orange-200 transition"
+              >
+                <Receipt size={15} /> My Bills
+              </Link>
             </div>
           )}
           

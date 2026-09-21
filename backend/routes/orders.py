@@ -244,3 +244,14 @@ async def update_status(order_id: str, status: str, type: str = "all"):
         }, order_row.get('student_id', ''))
 
         return {"message": "Status updated successfully"}
+
+
+@router.get('/orders/student/{student_id}')
+async def get_student_orders(student_id: str):
+    """Return all orders placed by a specific student, newest first."""
+    async with get_db() as db:
+        orders = await db.orders.find(
+            {"student_id": student_id},
+            {"_id": 0}
+        ).sort("created_at", -1).to_list(200)
+        return orders
