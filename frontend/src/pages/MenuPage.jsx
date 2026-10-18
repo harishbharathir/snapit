@@ -109,7 +109,12 @@ const MenuPage = ({ currentUser, onUpdateUser }) => {
     <div className="pb-24">
       <header className="mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-3 mb-3">
-          <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-700">
+          <button 
+            id="menu-back-home" 
+            onClick={() => navigate('/')} 
+            className="p-1.5 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition cursor-pointer"
+            title="Back to Home"
+          >
             <ArrowLeft size={20} />
           </button>
           <h1 className="text-2xl font-bold">{canteen?.name || `Canteen ${canteenId}`} Menu</h1>

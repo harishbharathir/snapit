@@ -62,6 +62,9 @@ app.include_router(ai_integration.router)
 app.include_router(analytics.router)
 app.include_router(auth.router)
 
+from routes import payments
+app.include_router(payments.router)
+
 @app.get("/api/health")
 async def health():
     return {"message": "snapit API", "version": "1.0.0", "database": "mongodb"}

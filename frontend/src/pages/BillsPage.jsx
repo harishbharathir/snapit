@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Receipt, Download, ChevronDown, ChevronUp, QrCode,
-  Coffee, Utensils, Search, Filter, CalendarDays, RefreshCw
+  Coffee, Utensils, Search, Filter, CalendarDays, RefreshCw, ArrowLeft
 } from 'lucide-react';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Capacitor } from '@capacitor/core';
 
 const CANTEEN_NAMES = { A: 'Main Canteen', B: 'Food Court', C: 'Snack Corner' };
 const CANTEEN_EMOJIS = { A: '🍽️', B: '🍔', C: '☕' };
@@ -198,10 +201,30 @@ const downloadBill = async (order) => {
   ctx.textAlign = 'center';
   ctx.fillText('Thank you for ordering with SnapIt • snapit.campus', W / 2, y + 16);
 
-  const link = document.createElement('a');
-  link.download = 'SnapIt-Bill-' + (order.id || 'order').slice(0, 8) + '.png';
-  link.href = canvas.toDataURL('image/png');
-  link.click();
+  const fileName = 'SnapIt-Bill-' + (order.id || 'order').slice(0, 8) + '.png';
+  const base64Data = canvas.toDataURL('image/png').split(',')[1]; // Get base64 string without data:image/png;base64, prefix
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: Directory.Documents, // Saves to device Documents folder
+      });
+      alert('Bill saved to Documents folder!');
+    } catch (e) {
+      console.error('Unable to save file', e);
+      alert('Error saving bill: ' + e.message);
+    }
+  } else {
+    // Desktop Web Fallback
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 };
 
 /* ─── QR Panel ────────────────────────────────────────────────────────────── */
@@ -372,6 +395,7 @@ const BillCard = ({ order, index }) => {
 
 /* ─── Main Page ────────────────────────────────────────────────────────────── */
 const BillsPage = ({ currentUser }) => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -424,6 +448,14 @@ const BillsPage = ({ currentUser }) => {
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
+          <button
+            id="bills-back-home"
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-orange-600 mb-2 transition group cursor-pointer"
+          >
+            <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+            <span>Back to Home</span>
+          </button>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Receipt className="text-orange-500" size={24} /> My Bills
           </h1>

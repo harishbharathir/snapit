@@ -57,12 +57,18 @@ class MenuItem(BaseModel):
     image_url: str
     available: bool
     inventory: int = 50
+    low_stock_threshold: int = 10
     is_special: bool = False
     # Staff-managed tags
     today_special: bool = False
     new_arrival: bool = False
     is_offer: bool = False
     offer_price: Optional[float] = None
+    # Nutrients
+    calories: Optional[int] = None
+    protein_g: Optional[float] = None
+    carbs_g: Optional[float] = None
+    fats_g: Optional[float] = None
 
 class MenuItemCreate(BaseModel):
     name: str
@@ -70,11 +76,16 @@ class MenuItemCreate(BaseModel):
     price: float
     category: str
     inventory: int = 50
+    low_stock_threshold: int = 10
     is_special: bool = False
     today_special: bool = False
     new_arrival: bool = False
     is_offer: bool = False
     offer_price: Optional[float] = None
+    calories: Optional[int] = None
+    protein_g: Optional[float] = None
+    carbs_g: Optional[float] = None
+    fats_g: Optional[float] = None
 
 class MenuItemUpdate(BaseModel):
     name: Optional[str] = None
@@ -82,12 +93,17 @@ class MenuItemUpdate(BaseModel):
     price: Optional[float] = None
     category: Optional[str] = None
     inventory: Optional[int] = None
+    low_stock_threshold: Optional[int] = None
     available: Optional[bool] = None
     is_special: Optional[bool] = None
     today_special: Optional[bool] = None
     new_arrival: Optional[bool] = None
     is_offer: Optional[bool] = None
     offer_price: Optional[float] = None
+    calories: Optional[int] = None
+    protein_g: Optional[float] = None
+    carbs_g: Optional[float] = None
+    fats_g: Optional[float] = None
 
 class OrderItemCreate(BaseModel):
     menu_item_id: int

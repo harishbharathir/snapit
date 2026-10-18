@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import QRDisplay from '../components/QRDisplay';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const OrderStatus = () => {
@@ -52,6 +52,17 @@ const OrderStatus = () => {
 
   return (
     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <button
+          id="order-back-home-top"
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-orange-600 transition group cursor-pointer"
+        >
+          <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+          <span>Back to Home</span>
+        </button>
+      </div>
+
       <div className="bg-white p-6 rounded-xl shadow-sm border text-center">
         <motion.div 
           initial={{ scale: 0 }} 

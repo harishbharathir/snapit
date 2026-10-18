@@ -8,10 +8,8 @@ import OrderStatus from './pages/OrderStatus';
 import CounterPage from './pages/CounterPage';
 import AdminDashboard from './pages/AdminDashboard';
 import BillsPage from './pages/BillsPage';
-
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
-
   useEffect(() => {
     const saved = localStorage.getItem('currentUser');
     if (saved) setCurrentUser(JSON.parse(saved));
@@ -21,7 +19,6 @@ function App() {
     localStorage.removeItem('currentUser');
     setCurrentUser(null);
   };
-
   if (!currentUser) {
     return <LoginPage onLogin={setCurrentUser} />;
   }

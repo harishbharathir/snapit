@@ -1,4 +1,3 @@
-"""End-to-end API tests for snapit with MongoDB and Real-Time Authentication."""
 import urllib.request
 import urllib.error
 import json

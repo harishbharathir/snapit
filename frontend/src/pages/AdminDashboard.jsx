@@ -5,6 +5,8 @@ import ZoneHeatmap from '../components/ZoneHeatmap';
 import { ShoppingCart, IndianRupee, Clock, Users, RefreshCw, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Capacitor } from '@capacitor/core';
 
 const CANTEEN_NAMES = { A: 'Main Canteen', B: 'Food Court', C: 'Snack Corner' };
 
@@ -39,7 +41,7 @@ const AdminDashboard = () => {
     fetchData();
   };
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     const date = new Date().toISOString().split('T')[0];
     const rows = [
       ['SnapIt Campus Report', `Generated: ${new Date().toLocaleString()}`],
@@ -85,17 +87,36 @@ const AdminDashboard = () => {
       peakHours.forEach(h => rows.push([h.label, h.occupancy, h.orders]));
     }
 
-    // Use Blob instead of encodeURI to handle special chars (₹, commas, etc.)
     const csvContent = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `snapit_report_${date}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const fileName = `snapit_report_${date}.csv`;
+    const csvData = '\uFEFF' + csvContent;
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        // Capacitor Filesystem expects a base64 string for file writing
+        const base64Data = btoa(unescape(encodeURIComponent(csvData))); 
+        await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Documents, 
+        });
+        alert('Report saved to Documents folder!');
+      } catch (e) {
+        console.error('Error saving file natively', e);
+        alert('Error saving file: ' + e.message);
+      }
+    } else {
+      // Desktop Web fallback
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
   };
 
 
