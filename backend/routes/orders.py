@@ -35,6 +35,26 @@ class ConnectionManager:
                 except Exception:
                     pass
 
+    async def broadcast(self, message: dict):
+        for user_id, conns in list(self.active_connections.items()):
+            for connection in conns:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    pass
+
+    async def send_to_canteen(self, message: dict, canteen_id: str):
+        targets = [canteen_id, f"canteen_{canteen_id}"]
+        for t in targets:
+            if t in self.active_connections:
+                for connection in self.active_connections[t]:
+                    try:
+                        await connection.send_json(message)
+                    except Exception:
+                        pass
+        # Also broadcast so any listening counter/kitchen component receives it
+        await self.broadcast(message)
+
 notification_manager = ConnectionManager()
 
 def generate_qr(data: str) -> str:
@@ -115,6 +135,48 @@ async def create_order(order: OrderCreate):
                 {"id": m["id"]},
                 {"$inc": {"inventory": -qty}}
             )
+
+            # Auto-replenishment trigger: check if stock depleted below threshold
+            updated_m = await db.menu_items.find_one({"id": m["id"]})
+            if updated_m:
+                curr_inv = updated_m.get("inventory", 0)
+                threshold = updated_m.get("low_stock_threshold", 10)
+                if curr_inv <= threshold:
+                    existing_req = await db.kitchen_requests.find_one({
+                        "canteen_id": order.canteen_id,
+                        "menu_item_id": m["id"],
+                        "status": {"$in": ["REQUESTED", "COOKING", "COOKED", "DISPATCHED"]}
+                    })
+                    if not existing_req:
+                        c_info = await db.canteens.find_one({"id": order.canteen_id})
+                        c_name = c_info.get("name", f"Canteen {order.canteen_id}") if c_info else f"Canteen {order.canteen_id}"
+                        kreq_id = f"KREQ-{uuid.uuid4().hex[:8].upper()}"
+                        req_doc = {
+                            "id": kreq_id,
+                            "canteen_id": order.canteen_id,
+                            "canteen_name": c_name,
+                            "menu_item_id": m["id"],
+                            "item_name": m["name"],
+                            "category": m.get("category", "General"),
+                            "requested_quantity": 50,
+                            "current_inventory": curr_inv,
+                            "status": "REQUESTED",
+                            "created_at": datetime.now(),
+                            "is_auto_triggered": True,
+                            "notes": f"Automated depletion restock: remaining stock {curr_inv}"
+                        }
+                        await db.kitchen_requests.insert_one(req_doc)
+                        await notification_manager.broadcast({
+                            "type": "NEW_KITCHEN_REQUEST",
+                            "request": {
+                                "id": kreq_id,
+                                "canteen_id": order.canteen_id,
+                                "canteen_name": c_name,
+                                "item_name": m["name"],
+                                "requested_quantity": 50,
+                                "current_inventory": curr_inv
+                            }
+                        })
             
             order_items_resp.append(OrderItemResponse(
                 id=m["id"],

@@ -19,8 +19,8 @@ async def register(req: RegisterRequest):
         raise HTTPException(status_code=400, detail="Password must be at least 4 characters long")
 
     role = req.role.lower().strip()
-    if role not in ['student', 'staff', 'admin']:
-        raise HTTPException(status_code=400, detail="Role must be student, staff, or admin")
+    if role not in ['student', 'staff', 'admin', 'kitchen']:
+        raise HTTPException(status_code=400, detail="Role must be student, staff, admin, or kitchen")
 
     async with get_db() as db:
         # Check if username exists (case-insensitive)
@@ -49,7 +49,7 @@ async def register(req: RegisterRequest):
             "password": hash_password(req.password),
             "role": role,
             "wallet_balance": initial_balance,
-            "canteen_id": req.canteen_id if role == 'staff' else None,
+            "canteen_id": req.canteen_id if role in ['staff', 'kitchen'] else None,
             "created_at": datetime.now()
         }
 

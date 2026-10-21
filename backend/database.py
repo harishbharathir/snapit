@@ -86,18 +86,31 @@ async def init_db():
         await database.orders.create_index([("canteen_id", 1), ("status", 1)])
         await database.orders.create_index([("student_id", 1), ("created_at", -1)])
         await database.crowd_zone_data.create_index([("canteen_id", 1), ("timestamp", -1)])
+        await database.kitchen_requests.create_index("id", unique=True)
+        await database.kitchen_requests.create_index([("canteen_id", 1), ("status", 1)])
+        await database.kitchen_requests.create_index([("menu_item_id", 1), ("status", 1)])
+        await database.kitchen_requests.create_index([("status", 1), ("created_at", -1)])
     except Exception as idx_err:
         print(f"Index notice: {idx_err}")
 
-    # 2. Seed / Ensure Canteens
-    canteen_count = await database.canteens.count_documents({})
-    if canteen_count == 0:
-        canteens = [
-            {'id': 'A', 'name': 'Main Canteen', 'location': 'Central Block', 'image_url': '/images/canteen_a.jpg', 'status': 'OPEN'},
-            {'id': 'B', 'name': 'Food Court', 'location': 'East Wing', 'image_url': '/images/canteen_b.jpg', 'status': 'OPEN'},
-            {'id': 'C', 'name': 'Snack Corner', 'location': 'Library Block', 'image_url': '/images/canteen_c.jpg', 'status': 'OPEN'}
-        ]
-        await database.canteens.insert_many(canteens)
+    # 2. Seed / Ensure 11 Canteens for Institutional Campus
+    all_canteens = [
+        {'id': 'A', 'name': 'Canteen 1 (Central Block)', 'location': 'Central Block Ground Floor', 'image_url': '/images/canteen_a.jpg', 'status': 'OPEN'},
+        {'id': 'B', 'name': 'Canteen 2 (Food Court)', 'location': 'East Wing Quad', 'image_url': '/images/canteen_b.jpg', 'status': 'OPEN'},
+        {'id': 'C', 'name': 'Canteen 3 (Snack Corner)', 'location': 'Library Complex', 'image_url': '/images/canteen_c.jpg', 'status': 'OPEN'},
+        {'id': 'D', 'name': 'Canteen 4 (Engg Quad)', 'location': 'Engineering Block B', 'image_url': '/images/canteen_a.jpg', 'status': 'OPEN'},
+        {'id': 'E', 'name': 'Canteen 5 (Science Block)', 'location': 'Science Tower 1st Floor', 'image_url': '/images/canteen_b.jpg', 'status': 'OPEN'},
+        {'id': 'F', 'name': 'Canteen 6 (Management Cafe)', 'location': 'MBA Executive Wing', 'image_url': '/images/canteen_c.jpg', 'status': 'OPEN'},
+        {'id': 'G', 'name': 'Canteen 7 (North Express)', 'location': 'North Gate Pavilion', 'image_url': '/images/canteen_a.jpg', 'status': 'OPEN'},
+        {'id': 'H', 'name': 'Canteen 8 (South Campus Hub)', 'location': 'South Campus Center', 'image_url': '/images/canteen_b.jpg', 'status': 'OPEN'},
+        {'id': 'I', 'name': 'Canteen 9 (Hostel Hall 1)', 'location': 'Boys Hostel Block', 'image_url': '/images/canteen_c.jpg', 'status': 'OPEN'},
+        {'id': 'J', 'name': 'Canteen 10 (Hostel Hall 2)', 'location': 'Girls Hostel Block', 'image_url': '/images/canteen_a.jpg', 'status': 'OPEN'},
+        {'id': 'K', 'name': 'Canteen 11 (Sports Arena)', 'location': 'Athletic Complex', 'image_url': '/images/canteen_b.jpg', 'status': 'OPEN'}
+    ]
+    for c in all_canteens:
+        exists = await database.canteens.find_one({"id": c["id"]})
+        if not exists:
+            await database.canteens.insert_one(c)
 
     # 3. Seed / Ensure Menu Items
     menu_count = await database.menu_items.count_documents({})
@@ -148,6 +161,16 @@ async def init_db():
                 'role': 'staff',
                 'wallet_balance': 0.0,
                 'canteen_id': 'B',
+                'created_at': datetime.now()
+            },
+            {
+                'id': 'kitchenA',
+                'username': 'KitchenA',
+                'email': 'kitchena@snapit.edu',
+                'password': hash_password('password'),
+                'role': 'kitchen',
+                'wallet_balance': 0.0,
+                'canteen_id': 'A',
                 'created_at': datetime.now()
             },
             {

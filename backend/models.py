@@ -157,3 +157,33 @@ class CrowdAnalysisResponse(BaseModel):
     recommendations: Optional[dict] = None
     timestamp: datetime
 
+
+# --- Central Kitchen / Factory Distributor Models ---
+class KitchenRestockRequestCreate(BaseModel):
+    canteen_id: str
+    menu_item_id: int
+    quantity: int = 50
+    notes: Optional[str] = None
+
+class KitchenRestockRequestStatusUpdate(BaseModel):
+    status: str  # "REQUESTED", "COOKING", "COOKED", "DISPATCHED", "RESTOCKED", "CANCELLED"
+    notes: Optional[str] = None
+
+class KitchenRestockResponse(BaseModel):
+    id: str
+    canteen_id: str
+    canteen_name: str
+    menu_item_id: int
+    item_name: str
+    category: str
+    requested_quantity: int
+    current_inventory: int
+    status: str  # "REQUESTED", "COOKING", "COOKED", "RESTOCKED"
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    cooked_at: Optional[datetime] = None
+    restocked_at: Optional[datetime] = None
+    is_auto_triggered: bool = False
+    notes: Optional[str] = None
+
+

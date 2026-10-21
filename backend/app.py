@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 
 from database import init_db, get_db
-from routes import menu, orders, ai_integration, analytics, auth
+from routes import menu, orders, ai_integration, analytics, auth, kitchen_distributor
 from services.crowd_service import crowd_service
 
 @contextlib.asynccontextmanager
@@ -61,6 +61,7 @@ app.include_router(orders.router)
 app.include_router(ai_integration.router)
 app.include_router(analytics.router)
 app.include_router(auth.router)
+app.include_router(kitchen_distributor.router)
 
 from routes import payments
 app.include_router(payments.router)

@@ -8,9 +8,30 @@ __pycache__/
 env/
 venv/
 yolov8m.pt
-frontend/node_modules/
-frontend/dist/
 backend/__pycache__/
 backend/campus_food.db
 .vscode/
 scratch/
+
+# Local configuration and Android build
+local.properties
+**/local.properties
+*.log
+.DS_Store
+Thumbs.db
+
+# SnapIt (Customer App)
+snapit/node_modules/
+snapit/dist/
+snapit/android/.gradle/
+snapit/android/build/
+snapit/android/app/build/
+snapit/android/local.properties
+
+# SnapIt Partner (Partner App)
+snapit-partner/node_modules/
+snapit-partner/dist/
+snapit-partner/android/.gradle/
+snapit-partner/android/build/
+snapit-partner/android/app/build/
+snapit-partner/android/local.properties
